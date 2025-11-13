@@ -1,0 +1,28 @@
+# Node / Vite
+node_modules/
+dist/
+frontend/carpartsFrontend/node_modules/
+frontend/carpartsFrontend/dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env files
+.env
+frontend/carpartsFrontend/.env
+
+# Docker
+db_data/
+*.pid
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
