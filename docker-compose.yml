@@ -27,12 +27,14 @@ services:
   db:
     image: mysql:8.0
     container_name: carparts_db
-    restart: unless-stopped
+    restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: carparts
-      MYSQL_USER: carparts_user
-      MYSQL_PASSWORD: carparts_pass
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+    ports:
+      - "3307:3306"
     volumes:
       - db_data:/var/lib/mysql
 
