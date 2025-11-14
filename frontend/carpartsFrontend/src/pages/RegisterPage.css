@@ -1,0 +1,7 @@
+@import './LoginPage.css';
+
+.auth-page--register {
+    /* slight variation in gradient if you want */
+    background: radial-gradient(circle at 100% 0%, rgba(228, 35, 19, 0.12), transparent 55%),
+    #020617;
+}

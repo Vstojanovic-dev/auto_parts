@@ -2,10 +2,12 @@
 // backend/api/public/auth/login.php
 
 header('Content-Type: application/json');
+require_once __DIR__ . '/../../../cors.php';
 
 session_start();
 
 require_once __DIR__ . '/../../../config.php';
+
 
 // Read JSON body
 $input = json_decode(file_get_contents('php://input'), true);

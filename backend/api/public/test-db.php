@@ -4,6 +4,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../cors.php';
 
 try {
     $stmt = $pdo->query("SELECT COUNT(*) AS product_count FROM products");

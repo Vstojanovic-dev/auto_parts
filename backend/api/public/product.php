@@ -4,6 +4,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../cors.php';
 
 // 1. Read and validate product id
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;

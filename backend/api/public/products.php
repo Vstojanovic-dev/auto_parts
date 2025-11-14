@@ -4,6 +4,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../cors.php';
 
 // 1. Read query params
 $q        = isset($_GET['q']) ? trim($_GET['q']) : '';

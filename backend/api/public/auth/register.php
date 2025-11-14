@@ -4,6 +4,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../../config.php';
+require_once __DIR__ . '/../../../cors.php';
 
 // Read JSON body
 $input = json_decode(file_get_contents('php://input'), true);

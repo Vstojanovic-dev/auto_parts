@@ -75,3 +75,9 @@
 .app-main {
     background: #ffffff;
 }
+.app-nav__welcome {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #e5e7eb;
+}

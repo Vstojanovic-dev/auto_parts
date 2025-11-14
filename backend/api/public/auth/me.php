@@ -3,6 +3,8 @@
 
 header('Content-Type: application/json');
 
+require_once __DIR__ . '/../../../cors.php';
+
 session_start();
 
 if (empty($_SESSION['user_id'])) {
