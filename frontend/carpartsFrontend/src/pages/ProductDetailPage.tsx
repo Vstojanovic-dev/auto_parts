@@ -1,5 +1,6 @@
 // import { useParams } from 'react-router-dom'
-import './ProductDetailPage.css'
+import { useCart } from '../context/CartContext.tsx';
+
 
 interface ProductDetail {
     id: number
@@ -37,7 +38,21 @@ const MOCK_PRODUCT_DETAIL: ProductDetail = {
 function ProductDetailPage() {
     //const { id } = useParams()
     // For now we ignore the id and use mock data – later you’ll fetch by id.
-    const product = MOCK_PRODUCT_DETAIL
+    const { addItem } = useCart();
+    const product = MOCK_PRODUCT_DETAIL; // as you already have
+
+    function handleAddToCart() {
+        addItem(
+            {
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                brand: product.brand,
+                category: product.category,
+            },
+            1,
+        );
+    }
 
     return (
         <div className="product-page">
@@ -99,13 +114,18 @@ function ProductDetailPage() {
                         </div>
 
                         <div className="product-info__actions">
-                            <button type="button" className="btn btn--primary">
+                            <button
+                                type="button"
+                                className="btn btn--primary"
+                                onClick={handleAddToCart}
+                            >
                                 Add to cart
                             </button>
                             <button type="button" className="btn btn--ghost">
                                 Vehicle compatibility
                             </button>
                         </div>
+
 
                         <div className="product-info__meta">
                             <span>Estimated delivery: 3–5 business days</span>

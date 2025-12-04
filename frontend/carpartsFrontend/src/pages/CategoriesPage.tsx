@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import './CategoriesPage.css';
 import { getCategories, type CategoryDto } from '../api/catalog';
 
 function CategoriesPage() {

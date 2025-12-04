@@ -1,134 +1,89 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import './ProductsPage.css'
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+    getProducts,
+    getCategories,
+    type ProductDto,
+    type CategoryDto,
+    type ProductsSortBackend,
+} from '../api/catalog';
+import { useCart } from '../context/CartContext.tsx';
 
 
-export type ProductCategory =
-    | 'Exhaust'
-    | 'Brakes'
-    | 'Suspension'
-    | 'Fluids'
-    | 'Electrical'
-    | 'Accessories'
+type SortOption = 'recommended' | 'price_low' | 'price_high';
 
-export interface Product {
-    id: number
-    name: string
-    brand: string
-    category: ProductCategory
-    price: number
-    badge?: 'new' | 'bestseller' | 'limited'
+function mapSortToBackend(sort: SortOption): ProductsSortBackend {
+    switch (sort) {
+        case 'price_low':
+            return 'price_asc';
+        case 'price_high':
+            return 'price_desc';
+        case 'recommended':
+        default:
+            return 'newest';
+    }
 }
 
-const MOCK_PRODUCTS: Product[] = [
-    {
-        id: 1,
-        name: 'Performance Exhaust System',
-        brand: 'AkraTune',
-        category: 'Exhaust',
-        price: 1250,
-        badge: 'bestseller',
-    },
-    {
-        id: 2,
-        name: 'Ceramic Front Brake Kit',
-        brand: 'TrackLine',
-        category: 'Brakes',
-        price: 590,
-        badge: 'new',
-    },
-    {
-        id: 3,
-        name: 'Street Coilover Kit',
-        brand: 'StancePro',
-        category: 'Suspension',
-        price: 980,
-    },
-    {
-        id: 4,
-        name: 'Engine Oil 5W-30 (5L)',
-        brand: 'PureOil',
-        category: 'Fluids',
-        price: 49,
-    },
-    {
-        id: 5,
-        name: '70Ah AGM Battery',
-        brand: 'VoltEdge',
-        category: 'Electrical',
-        price: 189,
-    },
-    {
-        id: 6,
-        name: 'All-weather Wiper Set',
-        brand: 'ClearView',
-        category: 'Accessories',
-        price: 29,
-    },
-    {
-        id: 7,
-        name: 'Rear Brake Pads',
-        brand: 'TrackLine',
-        category: 'Brakes',
-        price: 130,
-    },
-    {
-        id: 8,
-        name: 'Lowering Spring Kit',
-        brand: 'StancePro',
-        category: 'Suspension',
-        price: 340,
-        badge: 'limited',
-    },
-]
-
-const ALL_CATEGORIES: ProductCategory[] = [
-    'Exhaust',
-    'Brakes',
-    'Suspension',
-    'Fluids',
-    'Electrical',
-    'Accessories',
-]
-
-type SortOption = 'recommended' | 'price_low' | 'price_high'
-
 function ProductsPage() {
-    const [search, setSearch] = useState('')
-    const [activeCategory, setActiveCategory] = useState<ProductCategory | 'all'>('all')
-    const [sort, setSort] = useState<SortOption>('recommended')
+    const { addItem } = useCart();
 
-    const filteredProducts = useMemo(() => {
-        let items = [...MOCK_PRODUCTS]
+    const [searchParams] = useSearchParams();
+    const initialCategoryFromUrl = searchParams.get('category') ?? 'all';
 
-        if (activeCategory !== 'all') {
-            items = items.filter((p) => p.category === activeCategory)
+    const [search, setSearch] = useState('');
+    const [activeCategory, setActiveCategory] = useState<string>(initialCategoryFromUrl);
+    const [sort, setSort] = useState<SortOption>('recommended');
+
+    const [products, setProducts] = useState<ProductDto[]>([]);
+    const [categories, setCategories] = useState<CategoryDto[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const [total, setTotal] = useState(0);
+
+    // Load categories once (for chips)
+    useEffect(() => {
+        (async () => {
+            try {
+                const data = await getCategories();
+                setCategories(data);
+            } catch {
+                // Silent fail: chips will just show "All"
+            }
+        })();
+    }, []);
+
+    // Load products whenever filters change
+    useEffect(() => {
+        async function loadProducts() {
+            try {
+                setLoading(true);
+                setError(null);
+
+                const response = await getProducts({
+                    page: 1,
+                    limit: 12,
+                    q: search,
+                    category: activeCategory === 'all' ? undefined : activeCategory,
+                    sort: mapSortToBackend(sort),
+                });
+
+                setProducts(response.data);
+                setTotal(response.total);
+            } catch (err) {
+                if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError('Unknown error');
+                }
+                setProducts([]);
+            } finally {
+                setLoading(false);
+            }
         }
 
-        if (search.trim() !== '') {
-            const term = search.toLowerCase()
-            items = items.filter(
-                (p) =>
-                    p.name.toLowerCase().includes(term) ||
-                    p.brand.toLowerCase().includes(term),
-            )
-        }
-
-        if (sort === 'price_low') {
-            items.sort((a, b) => a.price - b.price)
-        } else if (sort === 'price_high') {
-            items.sort((a, b) => b.price - a.price)
-        } else {
-            // "recommended" – simple sort by badge presence then price
-            items.sort((a, b) => {
-                const badgeScore = (x?: string) =>
-                    x === 'bestseller' ? 2 : x === 'new' ? 1 : 0
-                return badgeScore(b.badge) - badgeScore(a.badge) || a.price - b.price
-            })
-        }
-
-        return items
-    }, [activeCategory, search, sort])
+        loadProducts();
+    }, [search, activeCategory, sort]);
 
     return (
         <div className="products-page">
@@ -139,8 +94,8 @@ function ProductsPage() {
                     <div className="products-hero__header">
                         <h1>Performance car parts</h1>
                         <p>
-                            Browse exhaust systems, brakes, suspension and more. Inspired by clean,
-                            minimal product catalogues from premium brands.
+                            Browse exhaust systems, brakes, suspension and more. Data is now coming
+                            directly from your PHP backend.
                         </p>
                     </div>
                 </div>
@@ -162,27 +117,22 @@ function ProductsPage() {
                         <div className="products-categories">
                             <button
                                 type="button"
-                                className={
-                                    activeCategory === 'all'
-                                        ? 'chip chip--active'
-                                        : 'chip'
-                                }
+                                className={activeCategory === 'all' ? 'chip chip--active' : 'chip'}
                                 onClick={() => setActiveCategory('all')}
                             >
                                 All
                             </button>
-                            {ALL_CATEGORIES.map((cat) => (
+
+                            {categories.map((cat) => (
                                 <button
-                                    key={cat}
+                                    key={cat.category}
                                     type="button"
                                     className={
-                                        activeCategory === cat
-                                            ? 'chip chip--active'
-                                            : 'chip'
+                                        activeCategory === cat.category ? 'chip chip--active' : 'chip'
                                     }
-                                    onClick={() => setActiveCategory(cat)}
+                                    onClick={() => setActiveCategory(cat.category)}
                                 >
-                                    {cat}
+                                    {cat.category}
                                 </button>
                             ))}
                         </div>
@@ -206,38 +156,61 @@ function ProductsPage() {
             {/* Product grid */}
             <section className="products-grid-section">
                 <div className="container">
-                    {filteredProducts.length === 0 ? (
+                    {loading && <p>Loading products…</p>}
+                    {error && !loading && (
+                        <p style={{ color: 'red', fontSize: '0.9rem' }}>Error: {error}</p>
+                    )}
+
+                    {!loading && !error && total > 0 && (
+                        <p className="products-count">
+                            Showing {products.length} of {total} products
+                        </p>
+                    )}
+
+                    {!loading && !error && products.length === 0 && (
                         <p className="products-empty">No products match your filters.</p>
-                    ) : (
+                    )}
+
+                    {!loading && !error && products.length > 0 && (
                         <div className="products-grid">
-                            {filteredProducts.map((p) => (
+                            {products.map((p) => (
                                 <article key={p.id} className="product-card">
-                                    {p.badge && (
-                                        <div className={`product-card__badge product-card__badge--${p.badge}`}>
-                                            {p.badge === 'bestseller' && 'Bestseller'}
-                                            {p.badge === 'new' && 'New'}
-                                            {p.badge === 'limited' && 'Limited'}
-                                        </div>
-                                    )}
                                     <div className="product-card__image-placeholder" />
                                     <div className="product-card__body">
                                         <p className="product-card__brand">{p.brand}</p>
                                         <h3 className="product-card__name">{p.name}</h3>
                                         <p className="product-card__category">{p.category}</p>
                                         <div className="product-card__footer">
-                      <span className="product-card__price">
-                        {p.price.toFixed(0)} €
-                      </span>
-                                            <Link
-                                                to={`/products/${p.id}`}
-                                                className="product-card__cta-link"
-                                            >
-                                                <button className="product-card__cta" type="button">
-                                                    View details
+  <span className="product-card__price">
+    {Number(p.price).toFixed(2)} €
+  </span>
+                                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                                <button
+                                                    className="product-card__cta"
+                                                    type="button"
+                                                    onClick={() =>
+                                                        addItem(
+                                                            {
+                                                                id: p.id,
+                                                                name: p.name,
+                                                                price: Number(p.price),
+                                                                brand: p.brand,
+                                                                category: p.category,
+                                                            },
+                                                            1,
+                                                        )
+                                                    }
+                                                >
+                                                    Add to cart
                                                 </button>
-                                            </Link>
-
+                                                <Link to={`/products/${p.id}`} className="product-card__cta-link">
+                                                    <button className="product-card__cta" type="button">
+                                                        View
+                                                    </button>
+                                                </Link>
+                                            </div>
                                         </div>
+
                                     </div>
                                 </article>
                             ))}
@@ -246,7 +219,7 @@ function ProductsPage() {
                 </div>
             </section>
         </div>
-    )
+    );
 }
 
-export default ProductsPage
+export default ProductsPage;

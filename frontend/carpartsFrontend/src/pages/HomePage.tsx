@@ -1,6 +1,34 @@
-import './HomePage.css'
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { getCategories, type CategoryDto } from '../api/catalog';
 
 function HomePage() {
+    const [categories, setCategories] = useState<CategoryDto[]>([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const data = await getCategories();
+                setCategories(data);
+            } catch {
+                // If it fails, we just keep the fallback static cards
+                setCategories([]);
+            }
+        })();
+    }, []);
+
+    const topCategories = categories.slice(0, 4);
+
+    // Fallback if DB has no categories (or request failed)
+    const fallbackCategories = [
+        { category: 'Exhaust systems', description: 'Deep, refined sound and reduced backpressure for your engine.' },
+        { category: 'Brakes', description: 'High-performance pads, discs and kits for confident stopping power.' },
+        { category: 'Suspension', description: 'Coilovers and lowering springs for sharper handling and stance.' },
+        { category: 'Accessories', description: 'Wheels and accessories to finish your build.' },
+    ];
+
+    const showDynamic = topCategories.length > 0;
+
     return (
         <div className="home">
             {/* HERO */}
@@ -16,7 +44,9 @@ function HomePage() {
                         about performance and design.
                     </p>
                     <div className="hero__actions">
-                        <button className="btn btn--primary">Browse car parts</button>
+                        <Link to="/products" className="hero-link">
+                            <button className="btn btn--primary">Browse car parts</button>
+                        </Link>
                         <button className="btn btn--ghost">Vehicle finder</button>
                     </div>
                 </div>
@@ -38,31 +68,37 @@ function HomePage() {
                 </div>
             </section>
 
-            {/* FEATURED CATEGORIES */}
+            {/* FEATURED CATEGORIES (dynamic subset from DB) */}
             <section className="section section--light">
                 <div className="container">
                     <div className="section__header">
                         <h2>Featured categories</h2>
-                        <p>Start with the essentials for your next upgrade.</p>
+                        <p>Jump directly into popular upgrade areas.</p>
                     </div>
                     <div className="categories">
-                        <article className="category-card">
-                            <div className="category-card__tag">New</div>
-                            <h3>Exhaust systems</h3>
-                            <p>Deep, refined sound and reduced backpressure for your engine.</p>
-                        </article>
-                        <article className="category-card">
-                            <h3>Brakes</h3>
-                            <p>High-performance pads, discs and kits for confident stopping power.</p>
-                        </article>
-                        <article className="category-card">
-                            <h3>Suspension</h3>
-                            <p>Coilovers and lowering springs for sharper handling and stance.</p>
-                        </article>
-                        <article className="category-card">
-                            <h3>Wheels & accessories</h3>
-                            <p>Lightweight alloys and hardware to finish your build.</p>
-                        </article>
+                        {(showDynamic ? topCategories : []).map((cat) => (
+                            <Link
+                                key={cat.category}
+                                to={`/products/list?category=${encodeURIComponent(cat.category)}`}
+                                className="category-link"
+                            >
+                                <article className="category-card">
+                                    <h3>{cat.category}</h3>
+                                    <p>
+                                        Explore {cat.category.toLowerCase()} parts tailored for performance
+                                        and reliability.
+                                    </p>
+                                </article>
+                            </Link>
+                        ))}
+
+                        {!showDynamic &&
+                            fallbackCategories.map((fc) => (
+                                <div key={fc.category} className="category-card">
+                                    <h3>{fc.category}</h3>
+                                    <p>{fc.description}</p>
+                                </div>
+                            ))}
                     </div>
                 </div>
             </section>
@@ -96,7 +132,7 @@ function HomePage() {
                 </div>
             </section>
         </div>
-    )
+    );
 }
 
-export default HomePage
+export default HomePage;

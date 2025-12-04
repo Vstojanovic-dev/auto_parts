@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
 import { loginUser, type AuthUser } from '../api/auth';
-import './LoginPage.css';
+
 
 interface LoginPageProps {
     onLogin: (user: AuthUser | null) => void;
