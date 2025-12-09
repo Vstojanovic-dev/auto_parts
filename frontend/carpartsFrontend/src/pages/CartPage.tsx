@@ -22,10 +22,23 @@ function CartPage() {
     return (
         <div className="cart-page">
             <div className="container cart-inner">
-                <h1 className="cart-title">Shopping cart</h1>
-                <p className="cart-subtitle">
-                    You have {totalItems} item{totalItems !== 1 ? 's' : ''} in your cart.
-                </p>
+                <div className="cart-header">
+                    <div>
+                        <p className="cart-eyebrow">Cart</p>
+                        <h1 className="cart-title">Your shopping bag</h1>
+                        <p className="cart-subtitle">
+                            {totalItems} item{totalItems !== 1 ? 's' : ''} ready to ship.
+                        </p>
+                    </div>
+                    <div className="cart-actions-inline">
+                        <Link to="/products" className="link-mute">
+                            Continue shopping →
+                        </Link>
+                        <button type="button" className="link-danger" onClick={clearCart}>
+                            Clear cart
+                        </button>
+                    </div>
+                </div>
 
                 <div className="cart-layout">
                     <div className="cart-items">
@@ -79,25 +92,25 @@ function CartPage() {
                     <aside className="cart-summary">
                         <h2>Order summary</h2>
                         <div className="cart-summary__row">
-                            <span>Items</span>
-                            <span>{totalItems}</span>
+                            <span>Subtotal</span>
+                            <span>{totalPrice.toFixed(2)} €</span>
+                        </div>
+                        <div className="cart-summary__row">
+                            <span>Shipping</span>
+                            <span>Calculated at checkout</span>
                         </div>
                         <div className="cart-summary__row cart-summary__row--total">
                             <span>Total</span>
                             <span>{totalPrice.toFixed(2)} €</span>
                         </div>
 
-                        <button type="button" className="btn btn--primary cart-summary__checkout">
-                            Proceed to checkout
-                        </button>
+                        <Link to="/checkout" className="btn btn--primary cart-summary__checkout">
+                            Continue to checkout
+                        </Link>
 
-                        <button
-                            type="button"
-                            className="cart-summary__clear"
-                            onClick={clearCart}
-                        >
-                            Clear cart
-                        </button>
+                        <p className="cart-summary__note">
+                            Secure checkout. Free returns within 30 days.
+                        </p>
                     </aside>
                 </div>
             </div>

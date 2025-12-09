@@ -101,7 +101,7 @@ function ProductsPage() {
                 </div>
             </section>
 
-            {/* Filters & controls */}
+            {}
             <section className="products-controls">
                 <div className="container products-controls__inner">
                     <div className="products-search">

@@ -1,47 +1,165 @@
-// import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useCart } from '../context/CartContext.tsx';
 
-
-interface ProductDetail {
-    id: number
-    name: string
-    brand: string
-    category: string
-    price: number
-    badge?: 'new' | 'bestseller' | 'limited'
-    shortDescription: string
-    longDescription: string
-    specs: { label: string; value: string }[]
-    compatibility: string
+interface BackendProduct {
+    id: number;
+    name: string;
+    brand: string;
+    category: string;
+    description?: string;
+    price: number | string;
+    stock: number;
+    image_url: string | null;
+    created_at: string;
 }
 
-const MOCK_PRODUCT_DETAIL: ProductDetail = {
-    id: 1,
-    name: 'Performance Exhaust System',
-    brand: 'AkraTune',
-    category: 'Exhaust',
-    price: 1250,
-    badge: 'bestseller',
-    shortDescription: 'Lightweight stainless performance exhaust with a deep, refined tone.',
-    longDescription:
-        'This performance exhaust system is engineered to improve exhaust flow, reduce weight, and deliver a deep, refined sound without excessive drone. Ideal for spirited street driving and occasional track days, it balances everyday usability with motorsport-inspired character.',
-    specs: [
-        { label: 'Material', value: 'Stainless steel' },
-        { label: 'Configuration', value: 'Cat-back system' },
-        { label: 'Weight reduction', value: 'Up to 7 kg vs OEM' },
-        { label: 'Warranty', value: '2 years' },
-    ],
-    compatibility:
-        'Compatible with selected performance models from 2018–2024. For exact fitment, please check your vehicle model, engine code, and body style.',
+interface ProductApiResponse {
+    status?: string;
+    message?: string;
+    product?: BackendProduct;
+    data?: BackendProduct[] | BackendProduct;
+}
+
+interface ProductDetail {
+    id: number;
+    name: string;
+    brand: string;
+    category: string;
+    price: number;
+    badge?: 'new' | 'bestseller' | 'limited';
+    shortDescription: string;
+    longDescription: string;
+    specs: { label: string; value: string }[];
+    compatibility: string;
+    imageUrl: string | null;
+}
+
+function buildImageUrl(raw: string | null): string | null {
+    if (!raw) return null;
+
+    // If backend already stored a full URL, just use it
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        return raw;
+    }
+
+    // If it's a relative path like "/assets/...", point to backend host (8080)
+    // Adjust this if you change your backend port/domain later.
+    if (raw.startsWith('/')) {
+        return `http://localhost:8080${raw}`;
+    }
+
+    // Fallback: treat as relative from backend root
+    return `http://localhost:8080/${raw}`;
+}
+
+function mapBackendToDetail(p: BackendProduct): ProductDetail {
+    const priceNumber =
+        typeof p.price === 'string' ? Number(p.price) : p.price;
+
+    const desc = p.description ?? '';
+
+    return {
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        category: p.category,
+        price: priceNumber,
+        badge:
+            ['Exhaust', 'Brakes'].includes(p.category) ? 'bestseller' : 'new',
+        shortDescription:
+            desc ||
+            'High-quality car part designed for performance and reliability.',
+        longDescription:
+            desc ||
+            'This product is engineered to meet or exceed OEM standards, providing a precise fit and long-term durability for your vehicle.',
+        specs: [
+            { label: 'Brand', value: p.brand },
+            { label: 'Category', value: p.category },
+            { label: 'Stock', value: `${p.stock} pcs` },
+            { label: 'Added', value: p.created_at },
+        ],
+        compatibility:
+            'For exact fitment, please check your vehicle model, engine code, and body style. If you are unsure, contact our support with your VIN number.',
+        imageUrl: buildImageUrl(p.image_url),
+    };
 }
 
 function ProductDetailPage() {
-    //const { id } = useParams()
-    // For now we ignore the id and use mock data – later you’ll fetch by id.
+    const { id } = useParams<{ id: string }>();
     const { addItem } = useCart();
-    const product = MOCK_PRODUCT_DETAIL; // as you already have
+
+    const [product, setProduct] = useState<ProductDetail | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [quantity, setQuantity] = useState(1);
+
+    useEffect(() => {
+        if (!id) {
+            setError('No product ID provided.');
+            return;
+        }
+
+        const safeId = id; // now definitely string for TS
+
+        async function loadProduct() {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const res = await fetch(
+                    `/api/public/product.php?id=${encodeURIComponent(safeId)}`,
+                    { credentials: 'include' }
+                );
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(
+                        `Failed to load product (${res.status} ${res.statusText}): ${text.slice(
+                            0,
+                            120
+                        )}`
+                    );
+                }
+
+                const json = (await res.json()) as ProductApiResponse;
+
+                if (json.status && json.status !== 'ok') {
+                    throw new Error(json.message ?? 'Backend returned an error status');
+                }
+
+                let backendProduct: BackendProduct | null = null;
+
+                if (json.product) {
+                    backendProduct = json.product;
+                } else if (Array.isArray(json.data)) {
+                    backendProduct = json.data.length > 0 ? json.data[0] : null;
+                } else if (json.data) {
+                    backendProduct = json.data;
+                }
+
+                if (!backendProduct) {
+                    throw new Error('Product not found');
+                }
+
+                setProduct(mapBackendToDetail(backendProduct));
+            } catch (err) {
+                if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError('Unknown error while loading product.');
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        void loadProduct();
+    }, [id]);
 
     function handleAddToCart() {
+        if (!product) return;
+
         addItem(
             {
                 id: product.id,
@@ -50,9 +168,47 @@ function ProductDetailPage() {
                 brand: product.brand,
                 category: product.category,
             },
-            1,
+            quantity,
         );
     }
+
+    if (loading) {
+        return (
+            <div className="product-page">
+                <section className="product-main">
+                    <div className="container">
+                        <p>Loading product…</p>
+                    </div>
+                </section>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="product-page">
+                <section className="product-main">
+                    <div className="container">
+                        <p style={{ color: '#fca5a5' }}>Error: {error}</p>
+                    </div>
+                </section>
+            </div>
+        );
+    }
+
+    if (!product) {
+        return (
+            <div className="product-page">
+                <section className="product-main">
+                    <div className="container">
+                        <p>Product not found.</p>
+                    </div>
+                </section>
+            </div>
+        );
+    }
+
+    const mainImageSrc = product.imageUrl;
 
     return (
         <div className="product-page">
@@ -64,7 +220,9 @@ function ProductDetailPage() {
                         <span>›</span>
                         <span>Products</span>
                         <span>›</span>
-                        <span className="product-breadcrumb__current">{product.category}</span>
+                        <span className="product-breadcrumb__current">
+              {product.category}
+            </span>
                     </nav>
 
                     <div className="product-banner__content">
@@ -74,13 +232,17 @@ function ProductDetailPage() {
                         </div>
                         <div className="product-banner__meta">
                             {product.badge && (
-                                <span className={`product-badge product-badge--${product.badge}`}>
+                                <span
+                                    className={`product-badge product-badge--${product.badge}`}
+                                >
                   {product.badge === 'bestseller' && 'Bestseller'}
                                     {product.badge === 'new' && 'New'}
                                     {product.badge === 'limited' && 'Limited'}
                 </span>
                             )}
-                            <span className="product-banner__category">{product.category}</span>
+                            <span className="product-banner__category">
+                {product.category}
+              </span>
                         </div>
                     </div>
                 </div>
@@ -89,15 +251,40 @@ function ProductDetailPage() {
             {/* Main layout */}
             <section className="product-main">
                 <div className="container product-main__grid">
-                    {/* Image / gallery placeholder */}
+                    {/* Image / gallery */}
                     <div className="product-gallery">
                         <div className="product-gallery__main">
-                            <div className="product-gallery__image-placeholder" />
+                            {mainImageSrc ? (
+                                <img
+                                    src={mainImageSrc}
+                                    alt={product.name}
+                                    className="product-gallery__image"
+                                />
+                            ) : (
+                                <div className="product-gallery__image-placeholder" />
+                            )}
                         </div>
                         <div className="product-gallery__thumbs">
-                            <div className="thumb thumb--active" />
-                            <div className="thumb" />
-                            <div className="thumb" />
+                            {/* For now we just show up to 3 identical thumbs if image exists */}
+                            {mainImageSrc ? (
+                                <>
+                                    <div className="thumb thumb--active">
+                                        <img src={mainImageSrc} alt={product.name} />
+                                    </div>
+                                    <div className="thumb">
+                                        <img src={mainImageSrc} alt={product.name} />
+                                    </div>
+                                    <div className="thumb">
+                                        <img src={mainImageSrc} alt={product.name} />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="thumb thumb--active" />
+                                    <div className="thumb" />
+                                    <div className="thumb" />
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -125,7 +312,18 @@ function ProductDetailPage() {
                                 Vehicle compatibility
                             </button>
                         </div>
-
+                        <div className="product-info__qty">
+                            <label htmlFor="product-qty">Quantity</label>
+                            <input
+                                id="product-qty"
+                                type="number"
+                                min={1}
+                                value={quantity}
+                                onChange={(e) =>
+                                    setQuantity(Math.max(1, Number(e.target.value) || 1))
+                                }
+                            />
+                        </div>
 
                         <div className="product-info__meta">
                             <span>Estimated delivery: 3–5 business days</span>
@@ -161,7 +359,7 @@ function ProductDetailPage() {
                 </div>
             </section>
         </div>
-    )
+    );
 }
 
-export default ProductDetailPage
+export default ProductDetailPage;

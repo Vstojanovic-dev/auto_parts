@@ -23,8 +23,14 @@ function LoginPage({ onLogin }: LoginPageProps) {
 
         try {
             const user = await loginUser(email, password);
-            onLogin(user);          // <-- inform App
-            navigate('/');          // redirect to home on success
+            onLogin(user);
+
+            // 🔥 redirect based on role
+            if (user && user.role === 'admin') {
+                navigate('/admin');
+            } else {
+                navigate('/');
+            }
         } catch (err) {
             if (err instanceof Error) {
                 setError(err.message);

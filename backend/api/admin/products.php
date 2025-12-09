@@ -1,84 +1,89 @@
-<?php
+<?php declare(strict_types=1);
 // backend/api/admin/products.php
-
-declare(strict_types=1);
 
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../cors.php';
 require_once __DIR__ . '/../../admin_guard.php';
 
-// Ensure current user is admin
-$adminUser = require_admin();
-
 /** @var PDO $pdo */
 global $pdo;
 
-// --- Pagination ---
-$page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
+
+$adminUser = require_admin();
+
+// --- Read and normalize query params ---
+
+$pageRaw  = $_GET['page']  ?? '1';
+$limitRaw = $_GET['limit'] ?? '20';
+
+$page  = (int) $pageRaw;
+$limit = (int) $limitRaw;
+
 if ($page < 1) {
     $page = 1;
 }
-
-$limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 20;
 if ($limit < 1) {
     $limit = 20;
 }
-if ($limit > 100) {
-    $limit = 100;
-}
+
 $offset = ($page - 1) * $limit;
 
-// --- Filters ---
+// Filters
+$qRaw        = $_GET['q']        ?? '';
+$categoryRaw = $_GET['category'] ?? '';
+$brandRaw    = $_GET['brand']    ?? '';
+$idRaw       = $_GET['id']       ?? '';
+$minPriceRaw = $_GET['min_price'] ?? '';
+$maxPriceRaw = $_GET['max_price'] ?? '';
+
+$q         = trim((string) $qRaw);
+$category  = trim((string) $categoryRaw);
+$brand     = trim((string) $brandRaw);
+$idFilter  = $idRaw !== '' ? (int) $idRaw : null;
+$minPrice  = $minPriceRaw !== '' ? (float) $minPriceRaw : null;
+$maxPrice  = $maxPriceRaw !== '' ? (float) $maxPriceRaw : null;
+
+$sort = $_GET['sort'] ?? 'newest';
+
+// --- Build WHERE and bind params ---
+
 $whereParts = [];
-$params = [];
+$params     = [];
 
 // Search across name, brand, category
-$qRaw = $_GET['q'] ?? '';
-$q = trim((string) $qRaw);
 if ($q !== '') {
-    $whereParts[] = '(name LIKE :q OR brand LIKE :q OR category LIKE :q)';
-    $params[':q'] = '%' . $q . '%';
+    $whereParts[]      = '(name LIKE :q OR brand LIKE :q OR category LIKE :q)';
+    $params[':q']      = '%' . $q . '%';
 }
 
 // Filter by exact ID
-if (isset($_GET['id']) && $_GET['id'] !== '') {
-    $idFilter = (int) $_GET['id'];
-    if ($idFilter > 0) {
-        $whereParts[] = 'id = :id';
-        $params[':id'] = $idFilter;
-    }
+if ($idFilter !== null && $idFilter > 0) {
+    $whereParts[]      = 'id = :id';
+    $params[':id']     = $idFilter;
 }
 
 // Filter by category
-if (isset($_GET['category']) && $_GET['category'] !== '') {
-    $category = trim((string) $_GET['category']);
-    if ($category !== '') {
-        $whereParts[] = 'category = :category';
-        $params[':category'] = $category;
-    }
+if ($category !== '') {
+    $whereParts[]          = 'category = :category';
+    $params[':category']   = $category;
 }
 
 // Filter by brand
-if (isset($_GET['brand']) && $_GET['brand'] !== '') {
-    $brand = trim((string) $_GET['brand']);
-    if ($brand !== '') {
-        $whereParts[] = 'brand = :brand';
-        $params[':brand'] = $brand;
-    }
+if ($brand !== '') {
+    $whereParts[]       = 'brand = :brand';
+    $params[':brand']   = $brand;
 }
 
-// Filter by price range
-if (isset($_GET['min_price']) && $_GET['min_price'] !== '') {
-    $minPrice = (float) $_GET['min_price'];
-    $whereParts[] = 'price >= :min_price';
-    $params[':min_price'] = $minPrice;
+// Price range
+if ($minPrice !== null) {
+    $whereParts[]          = 'price >= :min_price';
+    $params[':min_price']  = $minPrice;
 }
 
-if (isset($_GET['max_price']) && $_GET['max_price'] !== '') {
-    $maxPrice = (float) $_GET['max_price'];
-    $whereParts[] = 'price <= :max_price';
-    $params[':max_price'] = $maxPrice;
+if ($maxPrice !== null) {
+    $whereParts[]          = 'price <= :max_price';
+    $params[':max_price']  = $maxPrice;
 }
 
 $whereSql = '';
@@ -87,78 +92,85 @@ if (!empty($whereParts)) {
 }
 
 // --- Sorting ---
-$sort = $_GET['sort'] ?? 'newest';
-$orderBy = 'created_at DESC'; // default
 
 switch ($sort) {
     case 'price_asc':
-        $orderBy = 'price ASC';
+        $orderBy = 'ORDER BY price ASC';
         break;
     case 'price_desc':
-        $orderBy = 'price DESC';
+        $orderBy = 'ORDER BY price DESC';
         break;
     case 'name_asc':
-        $orderBy = 'name ASC';
+        $orderBy = 'ORDER BY name ASC';
         break;
     case 'name_desc':
-        $orderBy = 'name DESC';
+        $orderBy = 'ORDER BY name DESC';
         break;
     case 'newest':
     default:
-        $orderBy = 'created_at DESC';
+        $orderBy = 'ORDER BY created_at DESC';
         break;
 }
 
-// --- Count total matching products ---
-$countSql = "SELECT COUNT(*) AS cnt FROM products $whereSql";
-$countStmt = $pdo->prepare($countSql);
+// --- Query DB ---
 
-foreach ($params as $key => $value) {
-    // prices are floats, others strings/ints, but PDO::PARAM_STR works fine here
-    $countStmt->bindValue($key, $value);
+try {
+    // Count
+    $countSql = "SELECT COUNT(*) AS cnt FROM products $whereSql";
+    $countStmt = $pdo->prepare($countSql);
+
+    foreach ($params as $key => $value) {
+        $pdoType = is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR;
+        $countStmt->bindValue($key, $value, $pdoType);
+    }
+
+    $countStmt->execute();
+    $total = (int) $countStmt->fetchColumn();
+
+    // Data
+    $dataSql = "
+        SELECT
+            id,
+            name,
+            brand,
+            category,
+            description,
+            price,
+            stock,
+            image_url,
+            created_at
+        FROM products
+        $whereSql
+        $orderBy
+        LIMIT :limit OFFSET :offset
+    ";
+
+    $dataStmt = $pdo->prepare($dataSql);
+
+    foreach ($params as $key => $value) {
+        $pdoType = is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR;
+        $dataStmt->bindValue($key, $value, $pdoType);
+    }
+    $dataStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+    $dataStmt->execute();
+    $products = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalPages = $total > 0 ? (int) ceil($total / $limit) : 1;
+
+    echo json_encode([
+        'status'      => 'ok',
+        'page'        => $page,
+        'per_page'    => $limit,
+        'total'       => $total,
+        'total_pages' => $totalPages,
+        'data'        => $products,
+    ]);
+} catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode([
+        'status'  => 'error',
+        'message' => 'Failed to load products',
+    ]);
 }
-
-$countStmt->execute();
-$total = (int) $countStmt->fetchColumn();
-
-// --- Fetch page of products ---
-$dataSql = "
-    SELECT
-        id,
-        name,
-        brand,
-        category,
-        description,
-        price,
-        stock,
-        image_url,
-        created_at
-    FROM products
-    $whereSql
-    ORDER BY $orderBy
-    LIMIT :limit OFFSET :offset
-";
-
-$dataStmt = $pdo->prepare($dataSql);
-
-foreach ($params as $key => $value) {
-    $dataStmt->bindValue($key, $value);
-}
-
-$dataStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-$dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-
-$dataStmt->execute();
-$products = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
-
-$totalPages = $total > 0 ? (int) ceil($total / $limit) : 1;
-
-echo json_encode([
-    'status'      => 'ok',
-    'page'        => $page,
-    'per_page'    => $limit,
-    'total'       => $total,
-    'total_pages' => $totalPages,
-    'data'        => $products,
-]);
-
