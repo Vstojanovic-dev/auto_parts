@@ -52,10 +52,15 @@ $whereParts = [];
 $params     = [];
 
 // Search across name, brand, category
+// Search across name, brand, category
 if ($q !== '') {
-    $whereParts[]      = '(name LIKE :q OR brand LIKE :q OR category LIKE :q)';
-    $params[':q']      = '%' . $q . '%';
+    $whereParts[]          = '(name LIKE :q_name OR brand LIKE :q_brand OR category LIKE :q_category)';
+    $like                  = '%' . $q . '%';
+    $params[':q_name']     = $like;
+    $params[':q_brand']    = $like;
+    $params[':q_category'] = $like;
 }
+
 
 // Filter by exact ID
 if ($idFilter !== null && $idFilter > 0) {

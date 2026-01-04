@@ -9,17 +9,6 @@ export interface AuthUser {
     role: 'user' | 'admin';
 }
 
-interface RegisterResponseOk {
-    status: 'ok';
-    user_id: number;
-}
-
-interface RegisterResponseError {
-    status: 'error';
-    errors?: string[];
-    message?: string;
-}
-
 interface LoginResponseOk {
     status: 'ok';
     user: AuthUser;
@@ -30,27 +19,53 @@ interface LoginResponseError {
     message?: string;
 }
 
-export async function registerUser(name: string, email: string, password: string): Promise<number> {
-    const res = await fetch(`${API_BASE}/auth/register.php`, {
+export type RegisterPayload = {
+    name: string;
+    email: string;
+    password: string;
+    gender?: 'male' | 'female' | 'other' | 'prefer_not';
+    date_of_birth?: string;
+    vehicle?: { year?: number; make?: string; model?: string; engine?: string };
+    address?: {
+        address_line1?: string;
+        apartment?: string;
+        city?: string;
+        postal_code?: string;
+        country?: string;
+    };
+};
+
+export async function registerUser(payload: RegisterPayload): Promise<{
+    status: 'ok' | 'error';
+    user_id?: number;
+    verify_url?: string;
+    message?: string;
+    errors?: string[];
+}> {
+    const res = await fetch('/api/public/auth/register.php', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify(payload),
     });
 
-    const data = (await res.json()) as RegisterResponseOk | RegisterResponseError;
+    const text = await res.text();
+    let json: any;
+    try {
+        json = JSON.parse(text);
+    } catch {
+        throw new Error(text.slice(0, 160));
+    }
 
-    if (!res.ok || data.status !== 'ok') {
+    if (!res.ok || json.status !== 'ok') {
         const msg =
-            (data as RegisterResponseError).errors?.join('\n') ||
-            (data as RegisterResponseError).message ||
-            'Registration failed';
+            (Array.isArray(json.errors) && json.errors.join(', ')) ||
+            json.message ||
+            `Registration failed (${res.status})`;
         throw new Error(msg);
     }
 
-    return (data as RegisterResponseOk).user_id;
+    return json;
 }
 
 export async function loginUser(email: string, password: string): Promise<AuthUser> {

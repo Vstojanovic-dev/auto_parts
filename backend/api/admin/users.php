@@ -28,19 +28,29 @@ if ($limit > 100) {
 }
 $offset = ($page - 1) * $limit;
 
-// --- Search filter ---
+// --- Search + role filter ---
 $qRaw = $_GET['q'] ?? '';
 $q = trim((string) $qRaw);
+
+$roleRaw = $_GET['role'] ?? '';
+$role = trim((string) $roleRaw);
 
 $whereParts = [];
 $params = [];
 
-// NOTE: To avoid breaking anything, we only assume columns: name, email
-// If you have surname/username columns, you can extend this later.
 if ($q !== '') {
-    $whereParts[] = '(name LIKE :q OR email LIKE :q)';
-    $params[':q'] = '%' . $q . '%';
+    // IMPORTANT: use unique placeholders (PDO can fail if :q is reused)
+    $whereParts[] = '(name LIKE :q_name OR email LIKE :q_email)';
+    $like = '%' . $q . '%';
+    $params[':q_name'] = $like;
+    $params[':q_email'] = $like;
 }
+
+if ($role !== '' && ($role === 'admin' || $role === 'user')) {
+    $whereParts[] = 'role = :role';
+    $params[':role'] = $role;
+}
+
 
 $whereSql = '';
 if (!empty($whereParts)) {
